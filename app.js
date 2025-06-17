@@ -3,7 +3,9 @@
 import express from "express"
 
 import {getUsers, getUser, registerUser, checkEmail, getLogs, getLog, createLog, updateLogStatus,
-    assignLog, getMachines, getMachine, addMachine, getMachineHistory, getLocations, getLocation} from "./database.js";
+    assignLog, getMachines, getMachine, addMachine, getMachineHistory, getLocations, getLocation,
+    checkApiKey,
+    removeUser} from "./database.js";
 
 
 // const { createHash } = require('crypto');
@@ -44,7 +46,7 @@ app.get("/users", async (req, res) => {
 })
 
 
-// -------------------- get specific users --------------------
+// -------------------- get specific user --------------------
 app.get("/user/:id", async (req, res) => {
     const {id} = req.params;
 
@@ -171,6 +173,310 @@ app.post("/register", async (req, res) => {
     })
 }) 
 
+
+// -------------------- remove a user (admin only) --------------------
+app.delete("/userRemove/:id", async (req, res) =>{
+    const { id } = req.params;
+
+    // const {user_type} = localStorage.getItem("user_type")
+
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "UNAUTHORISED! - Invalid or missing api_key"
+            ]
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "Invalid user type - (Only 'Admin' can remove users)"
+            ]
+        })
+    }
+
+    // check if user exists in database
+    const userExists = await getUser(id);
+
+    if (userExists.length == 0){
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "User does not exist in database"
+            ]
+        })
+    }
+
+    // ** valid user (admin with api_key in db) **
+
+    try{
+        const [newUsers] = await removeUser(id);
+    }
+    catch (error){
+        return res.json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               `Database user remove error: ` + error
+            ]
+        })
+    }
+
+    return res.status(200).json({
+        status : "success",
+        timestamp : Date.now(),
+        data : [
+            `User (id : ${id}) successfully removed from Database `
+        ]
+    })
+    
+})
+
+// -------------------- login (any user) --------------------
+    // 1. validate email + password (if they are given)
+    // 2. db select for salt and password and api and user_type
+    // 3. set api_key and user_type to localStorage
+    // 4. validate password
+
+    // 5. 
+    // look up session alternatives in js / nodejs
+
+
+// -------------------- logout (any user) --------------------
+
+
+
+// -------------------- get all logs (admin) --------------------
+app.get("/logs", async (req, res) => {
+
+    // const {user_type} = localStorage.getItem("user_type")
+
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "UNAUTHORISED! - Invalid or missing api_key"
+            ]
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "Invalid user type - (Only 'Admin' can access all logs)"
+            ]
+        })
+    }
+
+    let logs;
+
+    try{
+       logs = await getLogs();
+    }
+    catch (error){
+        return res.json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               `Database GET logs error: ` + error
+            ]
+        })
+    }
+
+    return res.status(200).json({
+        status : "success",
+        timestamp : Date.now(),
+        data : {
+            logs : logs
+        }
+    })
+
+})
+
+// -------------------- get all technician's logs (technician) --------------------
+
+
+// -------------------- get specific log (admin and techncian) --------------------
+
+
+// -------------------- create log (any user) --------------------
+
+
+// -------------------- update log status (admin and techncian) --------------------
+
+
+// -------------------- assign log (admin) --------------------
+
+
+// -------------------- get all machines (admin)  --------------------
+app.get("/machines", async (req, res) => {
+
+    // const {user_type} = localStorage.getItem("user_type")
+
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "UNAUTHORISED! - Invalid or missing api_key"
+            ]
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "Invalid user type - (Only 'Admin' can access machine records)"
+            ]
+        })
+    }
+
+    let machines;
+
+    try{
+       machines = await getMachines();
+    }
+    catch (error){
+        return res.json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               `Database GET machines error: ` + error
+            ]
+        })
+    }
+
+    return res.status(200).json({
+        status : "success",
+        timestamp : Date.now(),
+        data : {
+            machines : machines
+        }
+    })
+
+})
+
+// -------------------- get specific machine (admin) --------------------
+
+
+// -------------------- add a machine (admin) --------------------
+
+
+// -------------------- get all specific machineHistory (admin) --------------------
+
+
+// -------------------- get all locations (admin)  --------------------
+app.get("/locations", async (req, res) => {
+
+    // const {user_type} = localStorage.getItem("user_type")
+
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "UNAUTHORISED! - Invalid or missing api_key"
+            ]
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               "Invalid user type - (Only 'Admin' can access machine records)"
+            ]
+        })
+    }
+
+    let locations;
+
+    try{
+       locations = await getLocations();
+    }
+    catch (error){
+        return res.json({
+            status : "error",
+            timestamp : Date.now(),
+            data : [
+               `Database GET locations error: ` + error
+            ]
+        })
+    }
+
+    return res.status(200).json({
+        status : "success",
+        timestamp : Date.now(),
+        data : {
+            locations : locations
+        }
+    })
+
+})
+
+// -------------------- get specific location (admin) --------------------
+
+
+// -------------------- add a location (admin) --------------------
+
+
+// -------------------- remove a location (admin) --------------------
 
 
 

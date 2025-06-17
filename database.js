@@ -65,12 +65,36 @@ export async function registerUser(email, username, hashed_password, user_type, 
 }
 
 
+// delete a user
+export async function removeUser(id) {
+    const [deletedUser] = await dbPool.query(
+        `DELETE FROM maintenance_users
+        WHERE id = ?`, [id]
+    )
+
+    const newUsers = getUsers();
+    return newUsers;
+}
+
+
 // check email (registration)
 export async function checkEmail(email) {
     const [user] = await dbPool.query(
         `SELECT * 
         FROM maintenance_users
         WHERE email = ?`, [email]
+    );
+
+    return user;
+}
+
+
+// check api_key
+export async function checkApiKey(api_key) {
+    const [user] = await dbPool.query(
+        `SELECT * 
+        FROM maintenance_users
+        WHERE api_key = ?`, [api_key]
     );
 
     return user;
