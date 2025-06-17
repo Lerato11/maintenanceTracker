@@ -27,19 +27,19 @@ const dbPool = mysql.createPool({
 // ------ USERS TABLE QUERIES --------- //
 
 // get all users
-async function getUsers() {
+export async function getUsers() {
     const [users] = await dbPool.query("SELECT * FROM maintenance_users");
 
     return users;
 }
 
-const users = await getUsers();
-console.log(users);
+// const users = await getUsers();
+// console.log(users);
 
 
 
 // get specific user
-async function getUser(id) {
+export async function getUser(id) {
     const [user] = await dbPool.query(
         `SELECT * 
         FROM maintenance_users
@@ -49,25 +49,37 @@ async function getUser(id) {
     return user;
 }
 
+
 // const user = await getUser(2);
 // console.log(user);
 
 // create user (registration)
-async function registerUser(email, username, hashed_password, user_type, salt, api_key) {
+export async function registerUser(email, username, hashed_password, user_type, salt, api_key) {
     const [user] = await dbPool.query(
         `INSERT INTO maintenance_users (email, username, password_hash, user_type, salt, api_key)
         VALUES (?, ?, ?, ?, ?, ?)`, [email, username, hashed_password, user_type, salt, api_key]
     );
 
-    const newUserId = user.result.insertId;
+    const newUserId = user.insertId;
     return getUser(newUserId)
 }
 
 
+// check email (registration)
+export async function checkEmail(email) {
+    const [user] = await dbPool.query(
+        `SELECT * 
+        FROM maintenance_users
+        WHERE email = ?`, [email]
+    );
+
+    return user;
+}
+
 // ------ LOGS TABLE QUERIES --------- //
 
 // get all logs (R)
-async function getLogs(){
+export async function getLogs(){
     const [logs] = await dbPool.query(
         `SELECT * 
         FROM maintenance_logs`
@@ -77,7 +89,7 @@ async function getLogs(){
 }
 
 // get specific log (R)
-async function getLog(id) {
+export async function getLog(id) {
     const [log] = await dbPool.query(
         `SELECT * 
         FROM maintenance_logs
@@ -88,7 +100,7 @@ async function getLog(id) {
 }
 
 // add a log (C)
-async function createLog(title, description, priority, status, machine_id, location_id) {
+export async function createLog(title, description, priority, status, machine_id, location_id) {
     const [newLog] = await dbPool.query(
         `INSERT INTO maintenance_logs (title, description, priority, status, machine_id, location_id)
         VALUES (?, ?, ?, ?, ?, ?)`, [title, description, priority, status, machine_id, location_id]
@@ -99,7 +111,7 @@ async function createLog(title, description, priority, status, machine_id, locat
 }
 
 // // resolve a log (-> machineHistory) (D)
-// async function resolveLog(id, status) {
+// export async function resolveLog(id, status) {
 //     const [updatedLog] = dbPool.query(
 //         `UPDATE maintenance_logs
 //         SET status = ?
@@ -108,7 +120,7 @@ async function createLog(title, description, priority, status, machine_id, locat
 // }
 
 // Update a log (status) (U)
-async function updateLogStatus(id, status) {
+export async function updateLogStatus(id, status) {
     const [updatedLog] = dbPool.query(
         `UPDATE maintenance_logs
         SET status = ?
@@ -128,11 +140,20 @@ async function updateLogStatus(id, status) {
     
 }
 
+// admin assign a log
+export async function assignLog(techId, id) {
+    const [assignedLog] = await dbPool.query(
+        `UPDATE maintenance_logs
+        SET assigned_to = ?
+        WHERE id = ?`, [techId, id]
+    )
+}
+
 
 // ------ MACHINES TABLE QUERIES --------- //
 
 // get all machines (R)
-async function getMachines() {
+export async function getMachines() {
     const [machines] = await dbPool.query(
         `SELECT *
         FROM maintenance_machines`
@@ -142,7 +163,7 @@ async function getMachines() {
 }
 
 // get specific machine (R)
-async function getMachine(id) {
+export async function getMachine(id) {
     const [machine] = await dbPool.query(
         `SELECT * 
         FROM maintenance_machines
@@ -153,7 +174,7 @@ async function getMachine(id) {
 }
 
 // add a machine (C)
-async function addMachine(name, location_id) {
+export async function addMachine(name, location_id) {
     const [newMachine] = await dbPool.query(
         `INSERT INTO maintenance_machines (name, location_id)
         VALUES (?, ?)`, [name, location_id]
@@ -165,7 +186,7 @@ async function addMachine(name, location_id) {
 
 
 // get all specific machineHistory (R)
-async function getMachineHistory(id) {
+export async function getMachineHistory(id) {
     const [machineHistory] = await dbPool.query(
         `SELECT * 
         FROM maintenance_machine_history
@@ -179,7 +200,7 @@ async function getMachineHistory(id) {
 // ------ LOCATIONS TABLE QUERIES --------- //
 
 // get all locations (R) 
-async function getLocations() {
+export async function getLocations() {
     const [locations] = await dbPool.query(
         `SELECT *
         FROM maintenance_locations`
@@ -189,7 +210,7 @@ async function getLocations() {
 }
 
 // get specific location (R)
-async function getLocation(id) {
+export async function getLocation(id) {
     const [location] = await dbPool.query(
         `SELECT * 
         FROM maintenance_locations
@@ -200,7 +221,7 @@ async function getLocation(id) {
 }
 
 // add a location (C)
-async function addLocation(name) {
+export async function addLocation(name) {
     const [newLocation] = await dbPool.query(
         `INSERT INTO maintenance_locations (name)
         VALUES (?, ?)`, [name]
