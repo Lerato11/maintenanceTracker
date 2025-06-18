@@ -46,7 +46,11 @@ export async function getUser(id) {
         WHERE id = ?`, [id]
     );
 
-    return user;
+    if (user.length > 0) {
+        return user[0];
+    } else {
+        return null; 
+    }
 }
 
 
@@ -120,17 +124,42 @@ export async function getLog(id) {
         WHERE id = ?`, [id]
     );
 
-    return log;
+
+    if (log.length > 0) {
+        return log[0];
+    } else {
+        return null; 
+    }
+
+    // return log;
 }
 
-// add a log (C)
-export async function createLog(title, description, priority, status, machine_id, location_id) {
-    const [newLog] = await dbPool.query(
-        `INSERT INTO maintenance_logs (title, description, priority, status, machine_id, location_id)
-        VALUES (?, ?, ?, ?, ?, ?)`, [title, description, priority, status, machine_id, location_id]
+
+
+// get specific techician logs
+export async function getTechLogs(id) {
+    const [logs] = await dbPool.query(
+        `SELECT * 
+        FROM maintenance_logs
+        WHERE assigned_to = ?`, [id]
     );
 
-    const newLogId = newLog.result.insertId;
+    if (logs.length > 0) {
+        return logs;
+    } else {
+        return null; 
+    }
+}
+
+
+// add a log (C)
+export async function createLog(title, description, priority, machine_id, location_id) {
+    const [newLog] = await dbPool.query(
+        `INSERT INTO maintenance_logs (title, description, priority, machine_id, location_id)
+        VALUES (?, ?, ?, ?, ?)`, [title, description, priority, machine_id, location_id]
+    );
+
+    const newLogId = newLog.insertId;
     return getLog(newLogId)
 }
 
@@ -143,34 +172,78 @@ export async function createLog(title, description, priority, status, machine_id
 //     );
 // }
 
-// Update a log (status) (U)
-export async function updateLogStatus(id, status) {
-    const [updatedLog] = dbPool.query(
-        `UPDATE maintenance_logs
-        SET status = ?
-        WHERE id = ?`, [id, status]
+// check api_key
+export async function checkMachineAndLocationID(machine_id, location_id) {
+    const [machine] = await dbPool.query(
+        `SELECT * 
+        FROM maintenance_machines
+        WHERE id = ? AND location_id = ?`, [machine_id, location_id]
     );
 
-    const returnedUpdatedLog = getLog(id);
+    if (machine.length > 0) {
+        return machine[0];
+    } else {
+        return null; 
+    }
+}
+
+
+//check location_id
+export async function checkLocationID(location_id) {
+    const [location] = await dbPool.query(
+        `SELECT * 
+        FROM maintenance_locations
+        WHERE id = ?`, [location_id]
+    );
+
+    if (location.length > 0) {
+        return location[0];
+    } else {
+        return null; 
+    }
+}
+
+// Update a log (status) (U)
+export async function updateLogStatus(status, id) {
+    const updatedLog = dbPool.query(
+        `UPDATE maintenance_logs
+        SET status = ?
+        WHERE id = ?`, [status, id]
+    );
+
+    const returnedUpdatedLog = await getLog(id);
 
     if (status === "Resolved"){
+        // const createdAtDate = new Date(originalLog.created_at);
+        const resolvedAtDate = new Date();
+
         const [newLog] = await dbPool.query(
-            `INSERT INTO maintenance_machine_history (machine_id, location_id, title, description, created_at)
-            VALUES (?, ?, ?, ?, ?)`, [returnedUpdatedLog.machine_id, returnedUpdatedLog.location_id, returnedUpdatedLog.title, returnedUpdatedLog.description, returnedUpdatedLog.created_at]
+            `INSERT INTO maintenance_machine_history (machine_id, location_id, title, description, created_at, resolved_at)
+            VALUES (?, ?, ?, ?, ?, ?)`, [returnedUpdatedLog.machine_id, returnedUpdatedLog.location_id, returnedUpdatedLog.title, returnedUpdatedLog.description, returnedUpdatedLog.created_at, resolvedAtDate]
         );
     }
 
-    return returnedUpdatedLog;
+    if (updatedLog.affectedRows > 0) {
+        return true;
+    } else {
+        return false; 
+    }
     
 }
 
 // admin assign a log
 export async function assignLog(techId, id) {
-    const [assignedLog] = await dbPool.query(
+    const [result] = await dbPool.query(
         `UPDATE maintenance_logs
         SET assigned_to = ?
         WHERE id = ?`, [techId, id]
     )
+
+    if (result.affectedRows > 0) {
+        return true;
+    } else {
+        return false; 
+    }
 }
 
 
@@ -194,7 +267,11 @@ export async function getMachine(id) {
         WHERE id = ?`, [id]
     );
 
-    return machine;
+    if (machine.length > 0) {
+        return machine[0];
+    } else {
+        return null; 
+    }
 }
 
 // add a machine (C)
@@ -204,7 +281,7 @@ export async function addMachine(name, location_id) {
         VALUES (?, ?)`, [name, location_id]
     );
 
-    const newMachineId = newMachine.result.insertId;
+    const newMachineId = newMachine.insertId;
     return getMachine(newMachineId)
 }
 
@@ -217,7 +294,25 @@ export async function getMachineHistory(id) {
         WHERE machine_id = ?`, [id]
     );
 
-    return machineHistory;
+    if (machineHistory.length > 0) {
+        return machineHistory[0];
+    } else {
+        return null; 
+    }
+}
+
+// delete a machine
+export async function removeMachine(id) {
+    const [result] = await dbPool.query(
+        `DELETE FROM maintenance_machines
+        WHERE id = ?`, [id]
+    )
+
+    if (result.affectedRows > 0) {
+        return true;
+    } else {
+        return false; 
+    }
 }
 
 
@@ -241,16 +336,34 @@ export async function getLocation(id) {
         WHERE id = ?`, [id]
     );
 
-    return location;
+    if (location.length > 0) {
+        return location[0];
+    } else {
+        return null; 
+    }
 }
 
 // add a location (C)
 export async function addLocation(name) {
     const [newLocation] = await dbPool.query(
         `INSERT INTO maintenance_locations (name)
-        VALUES (?, ?)`, [name]
+        VALUES (?)`, [name]
     );
 
-    const newLocationId = newLocation.result.insertId;
+    const newLocationId = newLocation.insertId;
     return getLocation(newLocationId)
+}
+
+// delete a location
+export async function removeLocation(id) {
+    const [result] = await dbPool.query(
+        `DELETE FROM maintenance_locations
+        WHERE id = ?`, [id]
+    )
+
+    if (result.affectedRows > 0) {
+        return true;
+    } else {
+        return false; 
+    }
 }
