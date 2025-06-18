@@ -16,7 +16,7 @@ const app = express()
 app.use(express.json());
 
 // email validation function
-async function validEmail(email) {
+function validEmail(email) {
     const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return pattern.test(email);
 }
@@ -41,8 +41,85 @@ function hash(string) {
 
 // -------------------- get all users --------------------
 app.get("/users", async (req, res) => {
-    const users = await getUsers();
-    res.send(users);
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(403).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can access user records",
+                status: 403
+            }
+        })
+    }
+
+    let users;
+
+    try{
+       users = await getUsers();
+
+            if (users.length > 0){
+            return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: "GET user - Successfull",
+                    status: 200,
+                    users: users,
+                }  
+            })
+        } else {
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `No users in database`,
+                    status: 404
+                }
+            })
+        }
+    }
+    catch (error){
+        return res.status(500).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: `Database GET users error: ` + error, 
+               status: 500
+            }
+        })
+    }
+
+    // return res.status(200).json({
+    //     status : "success",
+    //     timestamp : Date.now(),
+    //     data : {
+    //        message: "GET users - Successfull",
+    //        status: 400,
+    //        users: users
+    //     }
+    // })
 })
 
 
@@ -50,8 +127,77 @@ app.get("/users", async (req, res) => {
 app.get("/users/:id", async (req, res) => {
     const {id} = req.params;
 
-    const [user] = await getUser(id);
-    res.send(user);
+    const {user_type} = req.body; // for testing purposes. later use localStorage
+    const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    const apiKeyCheck = await checkApiKey(api_key);
+
+    if (apiKeyCheck.length <= 0){ // api_key exists
+
+        return res.status(401).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
+        })
+    }
+
+
+    // check if user_type == "Admin"
+    if (user_type != "Admin"){
+        
+        return res.status(403).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can access user records",
+                status: 403
+            }
+        })
+    }
+
+     let user;
+
+    try{
+        user = await getUser(id)
+
+        if (user){
+            return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: "GET user - Successfull",
+                    status: 200,
+                    user: user,
+                    assigned_logs : await getTechLogs(id)
+                }  
+            })
+        } else {
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `User (id: ${id}) not in database`,
+                    status: 404
+                }
+            })
+        }
+    } 
+
+    catch (error){
+        return res.status(500).json({
+            status: "error",
+            timestamp: Date.now(),
+            data: {
+                message: `Database GET user error: ` + error, 
+                status: 500
+            }
+        })
+    }
 })
 
 
@@ -63,6 +209,56 @@ app.post("/register", async (req, res) => {
     const {password} = req.body;
     const {user_type} = req.body;
 
+
+    // check if params are present
+
+    // check if email in body exists
+    if (!email){
+        return res.status(400).json({
+            status : "error [400]",
+            timestamp : Date.now(),
+            data : {
+                message : "Missing email parameter",
+                status : 400
+            }
+        })
+    }
+
+    // check if password in body exists
+    else if (!password){
+        return res.status(400).json({
+            status : "error [400]",
+            timestamp : Date.now(),
+            data : {
+                message : "Missing password parameter",
+                status : 400
+            }
+        })
+    }
+
+    // check if username in body exists
+    else if (!username){
+        return res.status(400).json({
+            status : "error [400]",
+            timestamp : Date.now(),
+            data : {
+                message : "Missing username parameter",
+                status : 400
+            }
+        })
+    }
+
+    // check if username in body exists
+    else if (!user_type){
+        return res.status(400).json({
+            status : "error [400]",
+            timestamp : Date.now(),
+            data : {
+                message : "Missing user type parameter",
+                status : 400
+            }
+        })
+    }
 
 
     //  validate the password 
@@ -77,11 +273,12 @@ app.post("/register", async (req, res) => {
         // status
 
         return res.status(400).json({
-            status : "error",
+            status : "error [400]",
             timestamp : Date.now(),
-            data : [
-               "Invalid form credentials"
-            ]
+            data : {
+                message : "Invalid form credentials",
+                status : 400
+            }
         })
     }
 
@@ -97,11 +294,12 @@ app.post("/register", async (req, res) => {
 
 
         return res.status(409).json({
-            status : "error",
+            status : "error [409]",
             timestamp : Date.now(),
-            data : [
-               "Email already in use"
-            ]
+            data : {
+                message : "Email already in use",
+                status : 409
+            }
         })
     }
 
@@ -112,11 +310,12 @@ app.post("/register", async (req, res) => {
     if (user_type != "Admin" && user_type != "Technician" && user_type != "Visitor"){
         
         return res.status(400).json({
-            status : "error",
+            status : "error [400]",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type"
-            ]
+            data : {
+                message : "Invalid user type",
+                status : 400
+            }
         })
     }
 
@@ -126,11 +325,12 @@ app.post("/register", async (req, res) => {
 
         // status 
         return res.status(400).json({
-            status: "error",
+            status: "error [400]",
             timestamp : Date.now(),
-            data : [
-                "Invalid Email"
-            ]
+            data : {
+                message : "Invalid Email",
+                status : 400
+            }
         })
     }
 
@@ -157,19 +357,23 @@ app.post("/register", async (req, res) => {
     catch (error){
         console.log(error)
         return res.status(500).json({
-            status : "error",
+            status : "error [500]",
             timestamp : Date.now(),
-            data : [
-               `Database insert error: ` + error
-            ]
+            data : {
+                message : "Database insert error:" + error, 
+                status : 500
+            }
         })
     }
 
     return res.status(200).json({
-        status : "success",
+        status : "success [200]",
         timestamp : Date.now(),
         data : {
-           api_key : api_key
+            message : "User successfully registered",
+            status : 200,
+
+            user_api_key : api_key
         }
     })
 }) 
@@ -193,60 +397,98 @@ app.delete("/userRemove/:id", async (req, res) =>{
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
+    const actingUser = apiKeyCheck[0];
+
+    
 
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can remove users)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can remove other users",
+                status: 403
+            }
         })
     }
 
+
+    const userToDeleteExists = await getUser(id);
     // check if user exists in database
-    const userExists = await getUser(id);
+    // const userExists = await getUser(id);
 
-    if (userExists.length == 0){
-        return res.status(400).json({
+    if (!userToDeleteExists){
+        return res.status(404).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "User does not exist in database"
-            ]
+            data : {
+               message: "User does not exist in database",
+               status: 404
+            }
         })
     }
+
+    
+    // check if id is not same as Admin deleting it
+    if (actingUser.id === parseInt(id, 10)) { // Assuming actingUser.id is a number
+        return res.status(403).json({ // 403 Forbidden is suitable
+            status: "error",
+            timestamp: Date.now(),
+            data: {
+                message: "FORBIDDEN! - An administrator cannot delete their own account.",
+                status: 403
+            }
+        });
+    }
+
+
 
     // ** valid user (admin with api_key in db) **
 
-    try{
-        const [newUsers] = await removeUser(id);
-    }
-    catch (error){
-        return res.status(500).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : [
-               `Database user remove error: ` + error
-            ]
-        })
-    }
+    try {
+        // removeUser should ideally return true/false based on affectedRows
+        const successfullyRemoved = await removeUser(id); // Ensure removeUser is correctly implemented
 
-    return res.status(200).json({
-        status : "success",
-        timestamp : Date.now(),
-        data : [
-            `User (id : ${id}) successfully removed from Database `
-        ]
-    })
+        if (successfullyRemoved) {
+            return res.status(200).json({
+                status: "success",
+                timestamp: Date.now(),
+                data: {
+                    message: `User (id : ${id}) successfully removed from Database`,
+                    status: 200
+                }
+            });
+        } else {
+            return res.status(500).json({
+                status: "error",
+                timestamp: Date.now(),
+                data: {
+                    message: `Failed to remove user (id : ${id}) from Database.`,
+                    status: 500
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error("Database user remove error:", error);
+        return res.status(500).json({
+            status: "error",
+            timestamp: Date.now(),
+            data: {
+                message: `Database user remove error: ` + (error.message || error),
+                status: 500
+            }
+        });
+    }
     
 })
 
@@ -281,9 +523,10 @@ app.get("/logs", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
@@ -291,12 +534,13 @@ app.get("/logs", async (req, res) => {
     // check if user_type == "Admin"
     if (user_type != "Admin"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access all logs)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can access log records",
+                status: 403
+            }
         })
     }
 
@@ -304,24 +548,38 @@ app.get("/logs", async (req, res) => {
 
     try{
        logs = await getLogs();
+
+       if (logs.length > 0){
+            return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: "GET log - Successfull",
+                    status: 200,
+                    logs: logs,
+                }  
+            })
+        } else {
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `No logs in database`,
+                    status: 404
+                }
+            })
+        }
     }
     catch (error){
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database GET logs error: ` + error
-            ]
+            data : {
+               message: `Database GET logs error: ` + error, 
+               status: 500
+            }
         })
     }
-
-    return res.status(200).json({
-        status : "success",
-        timestamp : Date.now(),
-        data : {
-            logs : logs
-        }
-    })
 
 })
 
@@ -341,21 +599,23 @@ app.get("/techLogs/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
     // check if user_type == "Admin"
     if (user_type != "Admin" && user_type != "Technician"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' and 'Technician' can access log records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' and 'Technician' users can access specific location records",
+                status: 403
+            }
         })
     }
 
@@ -372,9 +632,10 @@ app.get("/techLogs/:id", async (req, res) => {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `User (id: ${id}) not in database`
-                ]
+                data : {
+                    message: `User (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
 
@@ -382,9 +643,10 @@ app.get("/techLogs/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET user error: ` + error
-            ]
+            data : {
+                message :`Database GET user error: ` + error,
+                status : 500
+            }
         })
     }
 
@@ -400,16 +662,19 @@ app.get("/techLogs/:id", async (req, res) => {
                 status : "success",
                 timestamp : Date.now(),
                 data : {
-                    logs : logs
+                    message: "GET technician logs - Successfull",
+                    status: 200,
+                    assigned_logs: logs,
                 }
             })
         } else {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Technician (id: ${id}) not assigned any logs`
-                ]
+                data: {
+                    message: `Technician (id: ${id}) not assigned any logs`,
+                    status: 404
+                }
             })
         }
 
@@ -419,9 +684,10 @@ app.get("/techLogs/:id", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database GET technician logs error: ` + error
-            ]
+            data: {
+                message: `Database GET technician logs error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -443,9 +709,10 @@ app.get("/logs/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
@@ -454,9 +721,10 @@ app.get("/logs/:id", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' or 'Technician' can access specific log records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' and 'Technician' users can access specific log records",
+                status: 403
+            }
         })
     }
 
@@ -470,16 +738,19 @@ app.get("/logs/:id", async (req, res) => {
                 status : "success",
                 timestamp : Date.now(),
                 data : {
-                    log : log
-                }
+                    message: "GET log - Successfull",
+                    status: 200,
+                    log: log,
+                }  
             })
         } else {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Log (id: ${id}) not in database`
-                ]
+                data: {
+                    message: `User (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
     } 
@@ -488,9 +759,10 @@ app.get("/logs/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET log error: ` + error
-            ]
+            data: {
+                message: `Database GET log error: ` + error, 
+                status: 500
+            }
         })
     }
 })
@@ -499,34 +771,28 @@ app.get("/logs/:id", async (req, res) => {
 app.post("/createLog", async (req, res) => {
     const {title} = req.body;
     const {description} = req.body;
-    const {priority} = req.body;
+    let {priority} = req.body;
     // const {status} = req.body;
     const {machine_id} = req.body;
-    const {location_id} = req.body;
+    // const {location_id} = req.body;
 
     // check machine id and location id are valid in their table (Promis.all()) // sync
     // const {machineID, locationID} = Promise.all([getMachine(machine_id), getLocations(location_id)]); /// check
 
+    // default priority = 'low'
+    if (!priority){
+        priority = 'Low';
+    }
 
     // check if title in body exists
     if (!title){
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing title parameter"
-            ]
-        })
-    }
-
-    // check if location_id in body exists
-    else if (!location_id){
-        return res.status(400).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : [
-               "Missing location id"
-            ]
+            data : {
+               message: "Missing title parameter",
+                status: 400
+            }
         })
     }
 
@@ -535,24 +801,26 @@ app.post("/createLog", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing machine id"
-            ]
+            data : {
+               message: "Missing machine id parameter",
+                status: 400
+            }
         })
     }
 
     let machine;
 
     try{
-       machine = await checkMachineAndLocationID(machine_id, location_id); ////////------
+       machine = await getMachine(machine_id); ////////------
 
        if (!machine){
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Invalid machine_id or location_id`
-                ]
+                data : {
+                    message: `Invalid machine_id`,
+                    status: 404
+                }
             })
         }
     }
@@ -560,57 +828,39 @@ app.post("/createLog", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST log error: ` + error
-            ]
+            data : {
+                message :`Database GET machine error: ` + error,
+                status : 500
+            }
         })
     }
 
-
     
-
-    // if (machineID == null){
-    //     return res.status(400).json({
-    //         status : "error",
-    //         timestamp : Date.now(),
-    //         data : [
-    //            "Invalid machine ID - Please enter correct machine_id"
-    //         ]
-    //     })
-    // } else if (locationID == null){
-    //     return res.status(400).json({
-    //         status : "error",
-    //         timestamp : Date.now(),
-    //         data : [
-    //            "Invalid location ID - Please enter correct location_id"
-    //         ]
-    //     })
-    // }
-
-
-    //
-
     let newLog;
 
     try{
-       newLog = await createLog(title, description, priority, machine_id, location_id); ////////------
+       newLog = await createLog(title, description, priority, machine_id, machine.location_id); ////////------
     }
     catch (error){
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST log error: ` + error
-            ]
+            data : {
+                message : `Database POST log error: ` + error,
+                status : 500
+            }
         })
     }
 
     return res.status(200).json({
         status : "success",
         timestamp : Date.now(),
-        data : [
-            newLog
-        ]
+        data : {
+            message : "Location successfully added",
+            status : 200,
+
+            new_log : newLog
+        }
     })
 
 })
@@ -635,21 +885,23 @@ app.post("/updateStatus/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
 
     // check if user_type == "Admin" or "Technician"
     if (user_type != "Admin" && user_type != "Technician"){
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' or 'Technician' can access machine records)"
-            ]
+            data : {
+               message: "Invalid user type - (Only 'Admin', and 'Technician' can update log status)",
+                status: 403
+            }
         })
     }
 
@@ -658,17 +910,19 @@ app.post("/updateStatus/:id", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing status parameter"
-            ]
+            data : {
+               message: "Missing status parameter",
+                status: 400
+            }
         })
     } else if (status != "Pending" && status != "Active" && status != "Resolved"){
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid status parameter - ['Pending', 'Active', 'Resolved']"
-            ]
+            data : {
+               message: "Invalid status parameter - ['Pending', 'Active', 'Resolved']",
+                status: 400
+            }
         })
     }
 
@@ -684,9 +938,10 @@ app.post("/updateStatus/:id", async (req, res) => {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Log (id: ${id}) not in database`
-                ]
+                data : {
+                    message: `Log (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
 
@@ -694,9 +949,10 @@ app.post("/updateStatus/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET log error: ` + error
-            ]
+            data: {
+                message: `Database GET log error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -725,20 +981,21 @@ app.post("/updateStatus/:id", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST log status update error: ` + error
-            ]
+            data: {
+                message: `Database POST log status error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
     return res.status(200).json({
-        status : "success",
-        timestamp : Date.now(),
-        data : [
-             `Machine (id : ${id}) status successfully updated`,
-            await getLog(id)   // data[0]
-        ]
-    })
+            status : "success",
+            timestamp : Date.now(),
+            data: {
+                message: `Log (id : ${id}) status successfully updated`,
+                status: 200
+            }
+        });
 })
 
 // -------------------- assign log (admin) --------------------
@@ -761,21 +1018,23 @@ app.post("/assignlog/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access machine records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can assign logs",
+                status: 403
+            }
         })
     }
 
@@ -784,9 +1043,10 @@ app.post("/assignlog/:id", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing tech id parameter"
-            ]
+            data : {
+               message: "Missing tech id parameter",
+                status: 400
+            }
         })
     }
 
@@ -802,9 +1062,10 @@ app.post("/assignlog/:id", async (req, res) => {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Log (id: ${id}) not in database`
-                ]
+                data : {
+                    message: `Log (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
 
@@ -812,9 +1073,10 @@ app.post("/assignlog/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET log error: ` + error
-            ]
+            data: {
+                message: `Database GET log error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -827,9 +1089,10 @@ app.post("/assignlog/:id", async (req, res) => {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Technician (id: ${tech_id}) not in database`
-                ]
+                data : {
+                    message: `Technician (id: ${tech_id}) not in database`,
+                    status: 404
+                }
             })
         }
 
@@ -837,9 +1100,10 @@ app.post("/assignlog/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET technician error: ` + error
-            ]
+            data: {
+                message: `Database GET user log error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -855,19 +1119,22 @@ app.post("/assignlog/:id", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST assign log error: ` + error
-            ]
+            data: {
+                message:  `Database POST assign log error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
     return res.status(200).json({
         status : "success",
         timestamp : Date.now(),
-        data : [
-            await getLog(id),   // data[0]
-            technician          // data[1]
-        ]
+        data: {
+            message: `Log (id : ${id}) successfully assigned to Technician (id: ${tech_id})`,
+            status: 200,
+            assigned_log: await getLog(id),
+            technician: technician
+        }
     })
 })
 
@@ -887,47 +1154,63 @@ app.get("/machines", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
 
     // // check if user_type == "Admin"
-    // if (user_type != "Admin"){
-    //     return res.status(400).json({
-    //         status : "error",
-    //         timestamp : Date.now(),
-    //         data : [
-    //            "Invalid user type - (Only 'Admin' can access machine records)"
-    //         ]
-    //     })
-    // }
+    if (user_type != "Admin" && user_type != "Technician" && user_type != "Visitor"){
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "Invalid user type - (Only 'Admin', 'Technician' and 'Visitor' can access machine records)",
+                status: 403
+            }
+        })
+    }
 
 
     let machines;
 
     try{
        machines = await getMachines();
+
+       if (machines.length > 0){
+            return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: "GET machines - Successfull",
+                    status: 200,
+                    locations: machines,
+                }  
+            })
+        } else {
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `No machines in database`,
+                    status: 404
+                }
+            })
+        }
     }
     catch (error){
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database GET machines error: ` + error
-            ]
+            data : {
+               message: `Database GET machines error: ` + error, 
+               status: 500
+            }
         })
     }
-
-    return res.status(200).json({
-        status : "success",
-        timestamp : Date.now(),
-        data : {
-            machines : machines
-        }
-    })
 })
 
 // -------------------- get specific machine (admin) --------------------
@@ -946,20 +1229,22 @@ app.get("/machines/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access machine records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can access specific machine records",
+                status: 403
+            }
         })
     }
 
@@ -972,17 +1257,20 @@ app.get("/machines/:id", async (req, res) => {
             return res.status(200).json({
                 status : "success",
                 timestamp : Date.now(),
-                data : [
-                    machine
-                ]
+                data : {
+                    message: "GET machine - Successfull",
+                    status: 200,
+                    machine: machine,
+                }
             })
         } else {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Machine (id: ${id}) not in database`
-                ]
+                data: {
+                    message: `Machine (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
     } 
@@ -991,9 +1279,10 @@ app.get("/machines/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET machine error: ` + error
-            ]
+            data: {
+                message: `Database GET machine error: ` + error, 
+                status: 500
+            }
         })
     }
 })
@@ -1016,21 +1305,23 @@ app.post("/addMachine", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
-        return res.status(400).json({
+        return res.status(404).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access machine records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can add locations",
+                status: 403
+            }
         })
     }
 
@@ -1039,9 +1330,10 @@ app.post("/addMachine", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing name parameter"
-            ]
+            data : {
+               message: "Missing name parameter",
+                status: 400
+            }
         })
     }
 
@@ -1050,9 +1342,10 @@ app.post("/addMachine", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing location id"
-            ]
+            data : {
+               message: "Missing location id parameter",
+                status: 400
+            }
         })
     }
 
@@ -1069,9 +1362,10 @@ app.post("/addMachine", async (req, res) => {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Invalid location_id`
-                ]
+                data : {
+                    message: "Invalid location_id",
+                    status: 404
+                }
             })
         }
     }
@@ -1079,9 +1373,10 @@ app.post("/addMachine", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST log error: ` + error
-            ]
+            data : {
+                message :`Database GET location error: ` + error,
+                status : 500
+            }
         })
     }
 
@@ -1096,18 +1391,22 @@ app.post("/addMachine", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST log error: ` + error
-            ]
+            data : {
+                message : `Database POST machine error: ` + error,
+                status : 500
+            }
         })
     }
 
     return res.status(200).json({
         status : "success",
         timestamp : Date.now(),
-        data : [
-            newMachine
-        ]
+        data : {
+            message : "Location successfully added",
+            status : 200,
+
+            new_machine : newMachine
+        }
     })
 
 })
@@ -1130,9 +1429,10 @@ app.delete("/machineRemove/:id", async (req, res) =>{
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
@@ -1140,12 +1440,13 @@ app.delete("/machineRemove/:id", async (req, res) =>{
     // check if user_type == "Admin"
     if (user_type != "Admin"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can remove machine)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can remove machines",
+                status: 403
+            }
         })
     }
     
@@ -1157,12 +1458,13 @@ app.delete("/machineRemove/:id", async (req, res) =>{
         // console.log(location);
 
         if (!machineExists){
-            return res.status(400).json({
+            return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data : [
-                "Machine id does not exist in database"
-                ]
+                data : {
+                    message: "Machine id does not exist in database",
+                    status: 404
+                }
             })
         }
         
@@ -1171,9 +1473,10 @@ app.delete("/machineRemove/:id", async (req, res) =>{
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database machine check error: ` + error
-            ]
+            data: {
+                message: `Database machine remove error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -1187,17 +1490,19 @@ app.delete("/machineRemove/:id", async (req, res) =>{
             return res.status(200).json({
                 status : "success",
                 timestamp : Date.now(),
-                data : [
-                    `Machine (id : ${id}) successfully removed from Database`
-                ]
+                 data: {
+                    message: `Machine (id : ${id}) successfully removed from Database`,
+                    status: 200
+                }
             });
         } else {
             return res.status(500).json({
                 status : "error",
                 timestamp : Date.now(),
-                data : [
-                    `Failed to remove machine (id : ${id}) from Database.`
-                ]
+                data: {
+                    message: `Failed to remove machine (id : ${id}) from Database.`,
+                    status: 500
+                }
             });
         }
     }
@@ -1205,10 +1510,10 @@ app.delete("/machineRemove/:id", async (req, res) =>{
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-                // console.log(error)
-               `Database machine remove error: ` + error
-            ]
+            data: {
+                message: `Database machine remove error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
     
@@ -1230,40 +1535,43 @@ app.get("/machineHistory/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
     // check if user_type == "Admin"
-    if (user_type != "Admin" || user_type != "Technician"){
+    if (user_type != "Admin" && user_type != "Technician"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' and 'Technician' can access log records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' and 'Technician' users can access machine history records",
+                status: 403
+            }
         })
     }
 
 
 
-    // check if the user id is valid user in database
+    // check if the machine id is valid machine in database
 
     let machine;
 
     try{
-        machine = await getUser(id);
+        machine = await getMachine(id);
 
         if (!machine){
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Machine (id: ${id}) not in database`
-                ]
+                data : {
+                    message: `Machine (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
 
@@ -1271,9 +1579,10 @@ app.get("/machineHistory/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET machine error: ` + error
-            ]
+            data: {
+                message: `Database GET machine error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -1288,17 +1597,20 @@ app.get("/machineHistory/:id", async (req, res) => {
             return res.status(200).json({
                 status : "success",
                 timestamp : Date.now(),
-                data : {
-                    history : history
+                data: {
+                    message: `Machine (id : ${id}) history successfully retrieved from Database`,
+                    status: 200, 
+                    machine_history : history
                 }
             })
         } else {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Machine (id: ${id}) has no past logs`
-                ]
+                data : {
+                    message: `Machine (id: ${id}) has no past logs`,
+                    status: 404
+                }
             })
         }
 
@@ -1307,81 +1619,82 @@ app.get("/machineHistory/:id", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database GET machine history error: ` + error
-            ]
+            data: {
+                message: `Database GET machine history error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
 })
 
-// -------------------- get specific log (admin and techncian) --------------------
-app.get("/logs/:id", async (req, res) => {
-    const { id } = req.params;
+// // -------------------- get specific log (admin and techncian) --------------------
+// app.get("/logs/:id", async (req, res) => {
+//     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+//     const {user_type} = req.body; // for testing purposes. later use localStorage
+//     const {api_key} = req.body;  // localStorage.getItem("api_key")
 
 
-    // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+//     // check api_key
+//     const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+//     if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
-        })
-    }
+//         return res.status(401).json({
+//             status : "error",
+//             timestamp : Date.now(),
+//             data : [
+//                "UNAUTHORISED! - Invalid or missing api_key"
+//             ]
+//         })
+//     }
 
-    // check if user_type == "Admin" or "Technician"
-    if (user_type != "Admin" && user_type != "Technician"){
-        return res.status(400).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' or 'Technician' can access specific log records)"
-            ]
-        })
-    }
+//     // check if user_type == "Admin" or "Technician"
+//     if (user_type != "Admin" && user_type != "Technician"){
+//         return res.status(400).json({
+//             status : "error",
+//             timestamp : Date.now(),
+//             data : [
+//                "Invalid user type - (Only 'Admin' or 'Technician' can access specific log records)"
+//             ]
+//         })
+//     }
 
-    let log;
+//     let log;
 
-    try{
-        log = await getLog(id)
+//     try{
+//         log = await getLog(id)
 
-        if (log){
-            return res.status(200).json({
-                status : "success",
-                timestamp : Date.now(),
-                data : {
-                    log : log
-                }
-            })
-        } else {
-            return res.status(404).json({
-                status : "error",
-                timestamp : Date.now(),
-                data: [
-                    `Log (id: ${id}) not in database`
-                ]
-            })
-        }
-    } 
+//         if (log){
+//             return res.status(200).json({
+//                 status : "success",
+//                 timestamp : Date.now(),
+//                 data : {
+//                     log : log
+//                 }
+//             })
+//         } else {
+//             return res.status(404).json({
+//                 status : "error",
+//                 timestamp : Date.now(),
+//                 data: [
+//                     `Log (id: ${id}) not in database`
+//                 ]
+//             })
+//         }
+//     } 
 
-    catch (error){
-        return res.status(500).json({
-            status: "error",
-            timestamp: Date.now(),
-            data: [
-                `Database GET log error: ` + error
-            ]
-        })
-    }
-})
+//     catch (error){
+//         return res.status(500).json({
+//             status: "error",
+//             timestamp: Date.now(),
+//             data: [
+//                 `Database GET log error: ` + error
+//             ]
+//         })
+//     }
+// })
 
 // -------------------- get all locations (anyone) --------------------
 app.get("/locations", async (req, res) => {
@@ -1400,47 +1713,63 @@ app.get("/locations", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
 
-    // // check if user_type == "Admin"
-    // if (user_type != "Admin"){
+    // check if user_type == "Admin" or "Technician" or "Visitor"
+    if (user_type != "Admin" && user_type != "Technician" && user_type != "Visitor"){
         
-    //     return res.status(400).json({
-    //         status : "error",
-    //         timestamp : Date.now(),
-    //         data : [
-    //            "Invalid user type - (Only 'Admin' can access machine records)"
-    //         ]
-    //     })
-    // }
+        return res.status(403).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "Invalid user type - (Only 'Admin', 'Technician' and 'Visitor' can access location records)",
+                status: 403
+            }
+        })
+    }
 
     let locations;
 
     try{
        locations = await getLocations();
+
+        if (locations.length > 0){
+            return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: "GET locations - Successfull",
+                    status: 200,
+                    locations: locations,
+                }  
+            })
+        } else {
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `No locations in database`,
+                    status: 404
+                }
+            })
+        }
     }
     catch (error){
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database GET locations error: ` + error
-            ]
+            data : {
+               message: `Database GET locations error: ` + error, 
+               status: 500
+            }
         })
     }
-
-    return res.status(200).json({
-        status : "success",
-        timestamp : Date.now(),
-        data : [
-            locations
-        ]
-    })
 
 })
 
@@ -1460,20 +1789,22 @@ app.get("/locations/:id", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               staus: 401
+            }
         })
     }
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access machine records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can access specific location records",
+                status: 403
+            }
         })
     }
 
@@ -1486,17 +1817,20 @@ app.get("/locations/:id", async (req, res) => {
             return res.status(200).json({
                 status : "success",
                 timestamp : Date.now(),
-                data : [
-                    location
-                ]
+                data : {
+                    message: "GET location - Successfull",
+                    status: 200,
+                    location: location,
+                }
             })
         } else {
             return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data: [
-                    `Location (id: ${id}) not in database`
-                ]
+                data: {
+                    message: `Location (id: ${id}) not in database`,
+                    status: 404
+                }
             })
         }
     } 
@@ -1505,9 +1839,10 @@ app.get("/locations/:id", async (req, res) => {
         return res.status(500).json({
             status: "error",
             timestamp: Date.now(),
-            data: [
-                `Database GET location error: ` + error
-            ]
+            data: {
+                message: `Database GET location error: ` + error, 
+                status: 500
+            }
         })
     }
 })
@@ -1531,21 +1866,23 @@ app.post("/addLocation", async (req, res) => {
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
  
     // check if user_type == "Admin"
     if (user_type != "Admin"){
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can access machine records)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can add locations",
+                status: 403
+            }
         })
     }
 
@@ -1554,9 +1891,10 @@ app.post("/addLocation", async (req, res) => {
         return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Missing name parameter"
-            ]
+            data : {
+               message: "Missing name parameter",
+                status: 400
+            }
         })
     }
 
@@ -1571,18 +1909,22 @@ app.post("/addLocation", async (req, res) => {
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database POST location error: ` + error
-            ]
+            data : {
+                message : "Database POST location error:" + error, 
+                status : 500
+            }
         })
     }
 
     return res.status(200).json({
         status : "success",
         timestamp : Date.now(),
-        data : [
-            newLocation
-        ]
+        data : {
+            message : "Location successfully added",
+            status : 200,
+
+            new_location : newLocation
+        }
     })
 
 })
@@ -1605,9 +1947,10 @@ app.delete("/locationRemove/:id", async (req, res) =>{
         return res.status(401).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "UNAUTHORISED! - Invalid or missing api_key"
-            ]
+            data : {
+               message: "UNAUTHORISED! - Invalid or missing api_key",
+               status: 401
+            }
         })
     }
 
@@ -1615,12 +1958,13 @@ app.delete("/locationRemove/:id", async (req, res) =>{
     // check if user_type == "Admin"
     if (user_type != "Admin"){
         
-        return res.status(400).json({
+        return res.status(403).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               "Invalid user type - (Only 'Admin' can remove loactions)"
-            ]
+            data : {
+               message: "FORBIDDEN! - Only 'Admin' users can remove locations",
+                status: 403
+            }
         })
     }
     
@@ -1632,12 +1976,13 @@ app.delete("/locationRemove/:id", async (req, res) =>{
         // console.log(location);
 
         if (!locationExists){
-            return res.status(400).json({
+            return res.status(404).json({
                 status : "error",
                 timestamp : Date.now(),
-                data : [
-                "Location id does not exist in database"
-                ]
+                data : {
+                    message: "Location id does not exist in database",
+                    status: 404
+                }
             })
         }
         
@@ -1646,9 +1991,10 @@ app.delete("/locationRemove/:id", async (req, res) =>{
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-               `Database location check error: ` + error
-            ]
+            data: {
+                message: `Database GET location error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
 
@@ -1662,17 +2008,19 @@ app.delete("/locationRemove/:id", async (req, res) =>{
             return res.status(200).json({
                 status : "success",
                 timestamp : Date.now(),
-                data : [
-                    `Location (id : ${id}) successfully removed from Database`
-                ]
+                data: {
+                    message: `Location (id : ${id}) successfully removed from Database`,
+                    status: 200
+                }
             });
         } else {
             return res.status(500).json({
                 status : "error",
                 timestamp : Date.now(),
-                data : [
-                    `Failed to remove location (id : ${id}) from Database.`
-                ]
+                data: {
+                    message: `Failed to remove location (id : ${id}) from Database.`,
+                    status: 500
+                }
             });
         }
     }
@@ -1680,10 +2028,10 @@ app.delete("/locationRemove/:id", async (req, res) =>{
         return res.status(500).json({
             status : "error",
             timestamp : Date.now(),
-            data : [
-                // console.log(error)
-               `Database location remove error: ` + error
-            ]
+            data: {
+                message: `Database DELETE location error: ` + (error.message || error),
+                status: 500
+            }
         })
     }
     

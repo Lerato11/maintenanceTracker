@@ -28,9 +28,20 @@ const dbPool = mysql.createPool({
 
 // get all users
 export async function getUsers() {
-    const [users] = await dbPool.query("SELECT * FROM maintenance_users");
+    const [returnedUser] = await dbPool.query("SELECT * FROM maintenance_users");
 
-    return users;
+    if (returnedUser.length > 0) {
+        const safeUsers = returnedUser.map(user => ({
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            user_type: user.user_type,
+        }));
+
+        return safeUsers;
+    } else {
+        return null;
+    }
 }
 
 // const users = await getUsers();
@@ -40,16 +51,23 @@ export async function getUsers() {
 
 // get specific user
 export async function getUser(id) {
-    const [user] = await dbPool.query(
+    const [returnedUser] = await dbPool.query(
         `SELECT * 
         FROM maintenance_users
         WHERE id = ?`, [id]
     );
 
-    if (user.length > 0) {
-        return user[0];
+    if (returnedUser.length > 0) {
+        const user = returnedUser[0];
+        const safeUser = {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            user_type: user.user_type,
+        };
+        return safeUser;
     } else {
-        return null; 
+        return null;
     }
 }
 
@@ -276,13 +294,15 @@ export async function getMachine(id) {
 
 // add a machine (C)
 export async function addMachine(name, location_id) {
+    const createdAtDate = new Date();
+
     const [newMachine] = await dbPool.query(
-        `INSERT INTO maintenance_machines (name, location_id)
-        VALUES (?, ?)`, [name, location_id]
+        `INSERT INTO maintenance_machines (name, location_id, installed_at)
+        VALUES (?, ?, ?)`, [name, location_id, createdAtDate]
     );
 
     const newMachineId = newMachine.insertId;
-    return getMachine(newMachineId)
+    return await getMachine(newMachineId)
 }
 
 
@@ -295,7 +315,7 @@ export async function getMachineHistory(id) {
     );
 
     if (machineHistory.length > 0) {
-        return machineHistory[0];
+        return machineHistory;
     } else {
         return null; 
     }

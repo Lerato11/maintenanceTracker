@@ -65,3 +65,10 @@ CREATE TABLE maintenance_machine_history (
     FOREIGN KEY (location_id) REFERENCES maintenance_locations(id) ON DELETE SET NULL
 );
 
+
+
+-- INSERT INTO maintenance_logs (title, description, priority, status, machine_id, location_id) VALUES
+-- ('Belt Jam Detected', 'The main conveyor belt has jammed and is not moving.', 'High', 'Active', 1, 1),
+-- ('Sealing Unit Overheating', 'Temperature exceeds safe limits after 10 minutes of operation.', 'Critical', 'Pending', 2, 2),
+-- ('Sensor Calibration Needed', 'Precision tester Z3 is reporting inconsistent readings.', 'Medium', 'Pending', 3, 3),
+-- ('Routine Maintenance', 'Weekly maintenance check for Sealing Machine X9.', 'Low', 'Resolved', 2, 2);

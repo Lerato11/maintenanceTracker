@@ -1,0 +1,52 @@
+----+---------------------------+----------------------------------------------------------------+----------+----------+------------+-------------+-------------+---------------------+---------------------+
+| id | title                     | description                                                    | priority | status   | machine_id | location_id | assigned_to | created_at          | last_updated_at     |
++----+---------------------------+----------------------------------------------------------------+----------+----------+------------+-------------+-------------+---------------------+---------------------+
+|  5 | Belt Jam Detected         | The main conveyor belt has jammed and is not moving.           | High     | Active   |          1 |           1 |        NULL | 2025-06-17 20:32:23 | 2025-06-17 20:32:23 |
+|  6 | Sealing Unit Overheating  | Temperature exceeds safe limits after 10 minutes of operation. | Critical | Resolved |          2 |           2 |        NULL | 2025-06-17 20:32:23 | 2025-06-18 11:45:07 |
+|  7 | Sensor Calibration Needed | Precision tester Z3 is reporting inconsistent readings.        | Medium   | Pending  |          3 |           3 |           1 | 2025-06-17 20:32:23 | 2025-06-18 10:59:18 |
+|  8 | Routine Maintenance       | Weekly maintenance check for Sealing Machine X9.               | Low      | Resolved |          2 |           2 |           1 | 2025-06-17 20:32:23 | 2025-06-18 11:42:28 |
+| 13 | Test Log                  | This is a Test lOG                                             | High     | Pending  |          3 |           3 |        NULL | 2025-06-18 00:01:14 | 2025-06-18 00:01:14 |
++----+---------------------------+----------------------------------------------------------------+----------+----------+------------+-------------+-------------+---------------------+---------------------+
+5 rows in set (0.001 sec)
+
+MariaDB [maintananceDB]> SELECT * FROM maintenance_logs;
++----+---------------------------+----------------------------------------------------------------+----------+---------+------------+-------------+-------------+---------------------+---------------------+
+| id | title                     | description                                                    | priority | status  | machine_id | location_id | assigned_to | created_at          | last_updated_at     |
++----+---------------------------+----------------------------------------------------------------+----------+---------+------------+-------------+-------------+---------------------+---------------------+
+|  5 | Belt Jam Detected         | The main conveyor belt has jammed and is not moving.           | High     | Active  |          1 |           1 |        NULL | 2025-06-17 20:32:23 | 2025-06-17 20:32:23 |
+|  6 | Sealing Unit Overheating  | Temperature exceeds safe limits after 10 minutes of operation. | Critical | Active  |          2 |           2 |        NULL | 2025-06-17 20:32:23 | 2025-06-18 12:00:27 |
+|  7 | Sensor Calibration Needed | Precision tester Z3 is reporting inconsistent readings.        | Medium   | Pending |          3 |           3 |           1 | 2025-06-17 20:32:23 | 2025-06-18 10:59:18 |
+|  8 | Routine Maintenance       | Weekly maintenance check for Sealing Machine X9.               | Low      | Active  |          2 |           2 |           1 | 2025-06-17 20:32:23 | 2025-06-18 12:00:31 |
+| 13 | Test Log                  | This is a Test lOG                                             | High     | Pending |          3 |           3 |        NULL | 2025-06-18 00:01:14 | 2025-06-18 00:01:14 |
++----+---------------------------+----------------------------------------------------------------+----------+---------+------------+-------------+-------------+---------------------+---------------------+
+5 rows in set (0.001 sec)
+
+MariaDB [maintananceDB]> SELECT * FROM maintenance_machine_history;
+Empty set (0.003 sec)
+
+MariaDB [maintananceDB]> SELECT * FROM maintenance_machine_history;
++----+------------+-------------+---------------------+--------------------------------------------------+------------+-------------+
+| id | machine_id | location_id | title               | description                                      | created_at | resolved_at |
++----+------------+-------------+---------------------+--------------------------------------------------+------------+-------------+
+|  3 |          2 |           2 | Routine Maintenance | Weekly maintenance check for Sealing Machine X9. | 2025-06-17 | 2025-06-18  |
++----+------------+-------------+---------------------+--------------------------------------------------+------------+-------------+
+1 row in set (0.002 sec)
+
+MariaDB [maintananceDB]> SELECT * FROM maintenance_machine_history;
++----+------------+-------------+--------------------------+----------------------------------------------------------------+------------+-------------+
+| id | machine_id | location_id | title                    | description                                                    | created_at | resolved_at |
++----+------------+-------------+--------------------------+----------------------------------------------------------------+------------+-------------+
+|  3 |          2 |           2 | Routine Maintenance      | Weekly maintenance check for Sealing Machine X9.               | 2025-06-17 | 2025-06-18  |
+|  4 |          2 |           2 | Sealing Unit Overheating | Temperature exceeds safe limits after 10 minutes of operation. | 2025-06-17 | 2025-06-18  |
++----+------------+-------------+--------------------------+----------------------------------------------------------------+------------+-------------+
+2 rows in set (0.001 sec)
+
+MariaDB [maintananceDB]> SELECT * FROM maintenance_users;
++----+-------------------+------------+------------------------------------------------------------------+------------+------------+------------------+
+| id | email             | username   | password_hash                                                    | user_type  | salt       | api_key          |
++----+-------------------+------------+------------------------------------------------------------------+------------+------------+------------------+
+|  1 | tech1@example.com | tech_guy   | hashedpass123                                                    | Technician | salt123    | api_key_001      |
+| 15 | email2@gmail.com  | testAdmin2 | 5235457869f8a4c369ef6db6bef6668a2c792e88af4a3c008e89002dd82e4c2c | Admin      | 4qsjshlwgf | i97i4ctjfzytla2f |
+| 19 | emailT1@gmail.com | testTech1  | a923ff411d408ae1f6080f2f4ad1f4384172df84f0c437f135f242578eda826f | Technician | pgyxbewlf1 | 18q5nhhn8suwh8bm |
++----+-------------------+------------+------------------------------------------------------------------+------------+------------+------------------+
+3 rows in set (0.001 sec)
