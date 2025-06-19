@@ -23,6 +23,19 @@ const dbPool = mysql.createPool({
 // console.log(rows)
 
 
+// ------ LOGIN / LOGOUT QUERIES --------- //
+// export async function loginCheck(email) {
+//     const [validUser] = await dbPool.query(
+//         `SELECT * FROM maintenance_users
+//         WHERE email= ? AND password = ?`, [email]
+//     );
+
+//     if (validUser.length > 0) {
+//         return validUser;
+//     } else {
+//         return null;
+//     }
+// }
 
 // ------ USERS TABLE QUERIES --------- //
 
@@ -94,8 +107,7 @@ export async function removeUser(id) {
         WHERE id = ?`, [id]
     )
 
-    const newUsers = getUsers();
-    return newUsers;
+    return deletedUser.affectedRows > 0;
 }
 
 

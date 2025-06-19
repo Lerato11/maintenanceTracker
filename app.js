@@ -2,14 +2,23 @@
 
 import express from "express"
 
+import dotenv from "dotenv";
+dotenv.config();
+
 import {getUsers, getUser, registerUser, checkEmail, getLogs, getLog, createLog, updateLogStatus,
     assignLog, getMachines, getMachine, addMachine, getMachineHistory, getLocations, getLocation, getTechLogs,
     checkApiKey,removeUser, checkMachineAndLocationID, checkLocationID, addLocation, removeLocation, removeMachine} from "./database.js";
 
+import jwt from "jsonwebtoken"
+const secretKey = process.env.JWT_SECRET;
 
-// const { createHash } = require('crypto');
+
+//hash function
 import {createHash} from "crypto";
-import { stat } from "fs";
+
+// jwt auth from /middleware/authMiddleware.js
+import { verifyToken } from "./middleware/authMiddleware.js";
+
 
 const app = express()
 
@@ -37,28 +46,204 @@ function hash(string) {
   return createHash('sha256').update(string).digest('hex');
 }
 
-// ------ USERS TABLE Requests --------- //
+// function verifyToken(req, res, next) {
 
-// -------------------- get all users --------------------
-app.get("/users", async (req, res) => {
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+//     // Authorization: Bearer <token>
 
-    // check api_key
+//     const bearerHeader = req.headers['authorization'];
 
-    const apiKeyCheck = await checkApiKey(api_key);
+//     if(typeof bearerHeader !== "undefined"){
+//         const bearer = bearerHeader.split(" ")
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+//         const bearerToken = bearer[1];
 
-        return res.status(401).json({
+//         req.token = bearerToken;
+
+//         next();
+//     } else {
+//         // FORBIDDEN
+//         return res.status(400).json({
+//             status : "error",
+//             timestamp : Date.now(),
+//             data : {
+//                message: "Forbidden",
+//                 status: 400
+//             }
+//         })
+//     }
+// }
+
+
+// -------------------- login (any user) --------------------
+    // 1. validate email + password (if they are given)
+    // 2. db select for salt and password and api and user_type
+    // 3. set api_key and user_type to localStorage
+    // 4. validate password
+
+    // 5. 
+    // look up session alternatives in js / nodejs
+app.post("/login", async (req, res) => {
+    const {email} = req.body;
+    const {password} = req.body;
+
+    // check if not already logged in ----------------
+
+    // check if email and body params exist
+    if (!email){
+        return res.status(400).json({
+            status: "error",
+            timeStamp: Date.now(),
+            data : {
+               message: "Missing email parameter",
+                status: 400
+            }
+        })
+    } else if (!password){
+        return res.status(400).json({
             status : "error",
             timestamp : Date.now(),
             data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
+               message: "Missing password parameter",
+                status: 400
             }
         })
     }
+
+    // validate the email and password
+    let validUser;
+    try {
+        [validUser] = await checkEmail(email);
+
+        
+        if (validUser){
+        
+            //pasword verification
+            const salt = validUser.salt;
+            const password_hash = validUser.password_hash;
+
+
+            const saltedPassword = password + salt;
+
+            const hashedsaltedPassword = hash(saltedPassword);
+
+            if (password_hash != hashedsaltedPassword){
+                console.log(password_hash);
+                return res.status(404).json({
+                    status : "error",
+                    timestamp : Date.now(),
+                    data: {
+                        message: `Invalid Email or Password`,
+                        status: 404
+                    }
+                })
+            }
+
+            // valid user
+
+
+            const payload = {
+                userId: validUser.id,
+                email: validUser.email,
+                username: validUser.username,
+                user_type: validUser.user_type
+            }
+
+            const options = {
+                algorithm: 'HS256',
+                expiresIn: "1h"
+            };
+
+            const jwToken = await jwt.sign(payload, secretKey, options);
+
+                return res.status(200).json({
+                status : "success",
+                timestamp : Date.now(),
+                data : {
+                    message: `User id : ${validUser.id} Successfully logged in`,
+                    status: 200,
+                    token: jwToken
+                }  
+            })
+
+        } else {
+        
+            return res.status(404).json({
+                status : "error",
+                timestamp : Date.now(),
+                data: {
+                    message: `Invalid Email or Password`,
+                    status: 404
+                }
+            })
+        }
+    } catch (error){
+        console.log(error)
+        return res.status(500).json({
+            status: "error",
+            timestamp: Date.now(),
+            data: {
+                message: `Database POST login error: ` + error, 
+                status: 500
+            }
+        })
+    }
+
+    // jwt.sign(
+    //     {
+    //         userId: validUser.id,
+    //         email: validUser.email,
+    //         username: validUser.username,
+    //         user_type: validUser.user_type
+
+    //     }, secretKey, 
+        
+    //     {
+    //         algorithm: 'HS256'
+    //     }, 
+    //     {
+    //         expiresIn: "1h"
+    //     }, (error, jwToken) => {
+    //         if(error) {
+    //             return "OOPS!"
+    //         }
+
+    //         return res.status(200).json(jwToken);
+
+    //         // sessionStorage.setItem("token", jwToken);
+    //         // sessionStorage.setItem("user_type", user_type)
+
+    //     }
+    // )
+
+})
+
+// -------------------- logout (any user) --------------------
+
+
+
+
+// ------ USERS TABLE Requests --------- //
+
+// -------------------- get all users (admin) --------------------
+app.get("/users", verifyToken, async (req, res) => {
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
+
+    // check api_key
+
+    // const apiKeyCheck = await checkApiKey(api_key);
+
+    // if (apiKeyCheck.length <= 0){ // api_key exists
+
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -123,28 +308,28 @@ app.get("/users", async (req, res) => {
 })
 
 
-// -------------------- get specific user --------------------
-app.get("/users/:id", async (req, res) => {
+// -------------------- get specific user (admin) --------------------
+app.get("/users/:id", verifyToken, async (req, res) => {
     const {id} = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
-    // check api_key
+    // // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -380,30 +565,33 @@ app.post("/register", async (req, res) => {
 
 
 // -------------------- remove a user (admin only) --------------------
-app.delete("/userRemove/:id", async (req, res) =>{
+app.delete("/userRemove/:id", verifyToken,  async (req, res) =>{
     const { id } = req.params;
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {userId} = req.user; // for testing purposes. later use localStorage
 
-    // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // // check api_key
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
-    const actingUser = apiKeyCheck[0];
+    // const apiKeyCheck = await checkApiKey(api_key);
+
+    // if (apiKeyCheck.length <= 0){ // api_key exists
+
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
+    // const actingUser = apiKeyCheck[0];
 
     
 
@@ -439,7 +627,7 @@ app.delete("/userRemove/:id", async (req, res) =>{
 
     
     // check if id is not same as Admin deleting it
-    if (actingUser.id === parseInt(id, 10)) { // Assuming actingUser.id is a number
+    if (userId === parseInt(id, 10)) { // Assuming actingUser.id is a number
         return res.status(403).json({ // 403 Forbidden is suitable
             status: "error",
             timestamp: Date.now(),
@@ -451,6 +639,21 @@ app.delete("/userRemove/:id", async (req, res) =>{
     }
 
 
+    // console.log("Req id " + req.user.id)
+    // console.log("Id: " + id)
+
+
+    // return res.status(500).json({
+    //             status: "error",
+    //             timestamp: Date.now(),
+    //             data: {
+    //                 message: `Failed to remove usersss (id : ${id}) from Database.`,
+    //                 status: 500,
+    //                 req_id: userId,
+    //                 id: id
+    //                 // user : req.user
+    //             }
+    //         });
 
     // ** valid user (admin with api_key in db) **
 
@@ -492,43 +695,29 @@ app.delete("/userRemove/:id", async (req, res) =>{
     
 })
 
-// -------------------- login (any user) --------------------
-    // 1. validate email + password (if they are given)
-    // 2. db select for salt and password and api and user_type
-    // 3. set api_key and user_type to localStorage
-    // 4. validate password
-
-    // 5. 
-    // look up session alternatives in js / nodejs
-
-
-// -------------------- logout (any user) --------------------
-
-
-
 // -------------------- get all logs (admin) --------------------
-app.get("/logs", async (req, res) => {
+app.get("/logs", verifyToken, async (req, res) => {
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
-    // check api_key
+    // // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -584,27 +773,27 @@ app.get("/logs", async (req, res) => {
 })
 
 // -------------------- get all technician's logs (admin and technician) --------------------
-app.get("/techLogs/:id", async (req, res) => {
+app.get("/techLogs/:id", verifyToken, async (req, res) => {
     const {id} = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
     // check if user_type == "Admin"
     if (user_type != "Admin" && user_type != "Technician"){
@@ -694,27 +883,27 @@ app.get("/techLogs/:id", async (req, res) => {
 })
 
 // -------------------- get specific log (admin and techncian) --------------------
-app.get("/logs/:id", async (req, res) => {
+app.get("/logs/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body;  // localStorage.getItem("api_key")
 
 
     // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
     // check if user_type == "Admin" or "Technician"
     if (user_type != "Admin" && user_type != "Technician"){
@@ -768,7 +957,7 @@ app.get("/logs/:id", async (req, res) => {
 })
 
 // -------------------- create log (any user) --------------------
-app.post("/createLog", async (req, res) => {
+app.post("/createLog", verifyToken, async (req, res) => {
     const {title} = req.body;
     const {description} = req.body;
     let {priority} = req.body;
@@ -778,6 +967,9 @@ app.post("/createLog", async (req, res) => {
 
     // check machine id and location id are valid in their table (Promis.all()) // sync
     // const {machineID, locationID} = Promise.all([getMachine(machine_id), getLocations(location_id)]); /// check
+
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+
 
     // default priority = 'low'
     if (!priority){
@@ -804,6 +996,18 @@ app.post("/createLog", async (req, res) => {
             data : {
                message: "Missing machine id parameter",
                 status: 400
+            }
+        })
+    }
+
+    // // check if user_type == "Admin"
+    if (user_type != "Admin" && user_type != "Technician" && user_type != "Visitor"){
+        return res.status(400).json({
+            status : "error",
+            timestamp : Date.now(),
+            data : {
+               message: "Invalid user type - (Only 'Admin', 'Technician' and 'Visitor' can access machine records)",
+                status: 403
             }
         })
     }
@@ -866,31 +1070,31 @@ app.post("/createLog", async (req, res) => {
 })
 
 // -------------------- update log status (admin and techncian) --------------------
-app.post("/updateStatus/:id", async (req, res) => {
+app.patch("/updateStatus/:id", verifyToken, async (req, res) => {
     // getting assigned to in body, (log to assign as param)
 
     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body;  // localStorage.getItem("api_key")
 
     const {status} = req.body;
 
     
-    // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+    // // check api_key
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin" or "Technician"
@@ -999,31 +1203,31 @@ app.post("/updateStatus/:id", async (req, res) => {
 })
 
 // -------------------- assign log (admin) --------------------
-app.post("/assignlog/:id", async (req, res) => {
+app.patch("/assignlog/:id", verifyToken, async (req, res) => {
     // getting assigned to in body, (log to assign as param)
 
     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body;  // localStorage.getItem("api_key")
 
     const {tech_id} = req.body;
 
     
-    // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+    // // check api_key
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -1120,7 +1324,7 @@ app.post("/assignlog/:id", async (req, res) => {
             status : "error",
             timestamp : Date.now(),
             data: {
-                message:  `Database POST assign log error: ` + (error.message || error),
+                message: `Database PATCH assign log error: ` + (error.message || error),
                 status: 500
             }
         })
@@ -1139,27 +1343,27 @@ app.post("/assignlog/:id", async (req, res) => {
 })
 
 // -------------------- get all machines (anyone)  --------------------
-app.get("/machines", async (req, res) => {
+app.get("/machines", verifyToken, async (req, res) => {
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    // if (apiKeyCheck.length <= 0){ // api_key exists
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
 
     // // check if user_type == "Admin"
@@ -1214,27 +1418,27 @@ app.get("/machines", async (req, res) => {
 })
 
 // -------------------- get specific machine (admin) --------------------
-app.get("/machines/:id", async (req, res) => {
+app.get("/machines/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body;  // localStorage.getItem("api_key")
 
 
     // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
@@ -1288,10 +1492,10 @@ app.get("/machines/:id", async (req, res) => {
 })
 
 // -------------------- add a machine (admin) --------------------
-app.post("/addMachine", async (req, res) => {
+app.post("/addMachine", verifyToken, async (req, res) => {
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     const {location_id} = req.body;
     const {name} = req.body;
@@ -1299,18 +1503,18 @@ app.post("/addMachine", async (req, res) => {
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    // if (apiKeyCheck.length <= 0){ // api_key exists
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -1402,7 +1606,7 @@ app.post("/addMachine", async (req, res) => {
         status : "success",
         timestamp : Date.now(),
         data : {
-            message : "Location successfully added",
+            message : "Machine successfully added",
             status : 200,
 
             new_machine : newMachine
@@ -1412,29 +1616,29 @@ app.post("/addMachine", async (req, res) => {
 })
 
 // -------------------- remove a machine (admin) --------------------
-app.delete("/machineRemove/:id", async (req, res) =>{
+app.delete("/machineRemove/:id", verifyToken, async (req, res) =>{
     const { id } = req.params;
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
@@ -1462,7 +1666,7 @@ app.delete("/machineRemove/:id", async (req, res) =>{
                 status : "error",
                 timestamp : Date.now(),
                 data : {
-                    message: "Machine id does not exist in database",
+                    message: `Machine id: ${id} does not exist in database`,
                     status: 404
                 }
             })
@@ -1519,28 +1723,28 @@ app.delete("/machineRemove/:id", async (req, res) =>{
     
 })
 
-// -------------------- get all specific machineHistory (admin) --------------------
-app.get("/machineHistory/:id", async (req, res) => {
+// -------------------- get all specific machineHistory (admin and Technician) --------------------
+app.get("/machineHistory/:id", verifyToken, async (req, res) => {
     const {id} = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
-    // check api_key
+    // // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
     // check if user_type == "Admin"
     if (user_type != "Admin" && user_type != "Technician"){
@@ -1697,28 +1901,28 @@ app.get("/machineHistory/:id", async (req, res) => {
 // })
 
 // -------------------- get all locations (anyone) --------------------
-app.get("/locations", async (req, res) => {
+app.get("/locations", verifyToken, async (req, res) => {
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin" or "Technician" or "Visitor"
@@ -1774,27 +1978,27 @@ app.get("/locations", async (req, res) => {
 })
 
 // -------------------- get specific location (admin) --------------------
-app.get("/locations/:id", async (req, res) => {
+app.get("/locations/:id", verifyToken, async (req, res) => {
     const { id } = req.params;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body;  // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body;  // localStorage.getItem("api_key")
 
 
-    // check api_key
-    const apiKeyCheck = await checkApiKey(api_key);
+    // // check api_key
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               staus: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            staus: 401
+    //         }
+    //     })
+    // }
 
     // check if user_type == "Admin"
     if (user_type != "Admin"){
@@ -1849,29 +2053,29 @@ app.get("/locations/:id", async (req, res) => {
 
 
 // -------------------- add a location (admin) --------------------
-app.post("/addLocation", async (req, res) => {
+app.post("/addLocation", verifyToken, async (req, res) => {
 
     const {name} = req.body;
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
 
 
-    // check api_key
+    // // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    // if (apiKeyCheck.length <= 0){ // api_key exists
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
  
     // check if user_type == "Admin"
@@ -1930,29 +2134,29 @@ app.post("/addLocation", async (req, res) => {
 })
 
 // -------------------- remove a location (admin) --------------------
-app.delete("/locationRemove/:id", async (req, res) =>{
+app.delete("/locationRemove/:id", verifyToken, async (req, res) =>{
     const { id } = req.params;
 
     // const {user_type} = localStorage.getItem("user_type")
 
-    const {user_type} = req.body; // for testing purposes. later use localStorage
-    const {api_key} = req.body; // localStorage.getItem("api_key")
+    const {user_type} = req.user; // for testing purposes. later use localStorage
+    // const {api_key} = req.body; // localStorage.getItem("api_key")
 
     // check api_key
 
-    const apiKeyCheck = await checkApiKey(api_key);
+    // const apiKeyCheck = await checkApiKey(api_key);
 
-    if (apiKeyCheck.length <= 0){ // api_key exists
+    // if (apiKeyCheck.length <= 0){ // api_key exists
 
-        return res.status(401).json({
-            status : "error",
-            timestamp : Date.now(),
-            data : {
-               message: "UNAUTHORISED! - Invalid or missing api_key",
-               status: 401
-            }
-        })
-    }
+    //     return res.status(401).json({
+    //         status : "error",
+    //         timestamp : Date.now(),
+    //         data : {
+    //            message: "UNAUTHORISED! - Invalid or missing api_key",
+    //            status: 401
+    //         }
+    //     })
+    // }
 
 
     // check if user_type == "Admin"
